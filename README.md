@@ -77,7 +77,14 @@ From here incoming study data whichs need to be mapped to the target codebook ca
 
 #### Step 3: Initialise Tool
 
-Once studies have been uploaded you can run the variable description completion and ontology recomendation engines. You will be prompted to upload an OpenAI API key and given the option to fine tune the LLM propt used by the description completion engine.
+Once studies have been uploaded you can run the variable description completion and ontology recommendation engines. You will be prompted to upload an OpenAI API key and given the option to fine tune the LLM propt used by the description completion engine.
+
+***Note***
+You can also configure to use Gemini AI model instead of OpenAI. Since Gemini is free for limited use, this could be useful to try out the project. 
+To use Gemini add `gemini_api_key` to the `.env` configuration file and remove `OpenAI_api_key` if present.
+```
+gemini_api_key=xxxxx
+```
 
 #### Step 3: Map Datasets to Codebook
 

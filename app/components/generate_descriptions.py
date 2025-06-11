@@ -1,12 +1,14 @@
 import pandas as pd
 import math
 import fsspec
-import time
 from pdfminer.high_level import extract_text
 import re
 from scipy import spatial
 from dotenv import dotenv_values
-from .util import init_llm_models
+
+from .ai_model import AIModel
+from .ai_model_factory import get_ai_model
+
 
 results_path = "results"
 input_path = "input"
@@ -75,29 +77,6 @@ def convert_pdf_to_txt():
             with fs.open(output_file, 'w') as of:
                 of.write(text)
 
-def get_embedding(openai_client, text, model="text-embedding-ada-002"):
-    """
-    Get the embedding for a given text using OpenAI's API.
-
-    Args:
-        openai_client (object): The OpenAI client.
-        text (str): The text to be embedded.
-        model (str, optional): The model to be used for embedding. Defaults to "text-embedding-ada-002".
-
-    Returns:
-        list: The embedding vector for the text.
-    """
-    text = str(text).replace("\n", " ")
-    if openai_client:
-        try:
-            response = openai_client.embeddings.create(input=[text], model=model)
-            return response.data[0].embedding
-        except Exception as e:
-            print(f"Error generating OpenAI embedding: {str(e)}")
-    else:
-        raise ValueError("No OpenAI client available. Please provide an OpenAI API key.")
-    return None
-
 def split_text_recursively(text, chunk_size=1000, chunk_overlap=20, separators=None, is_separator_regex=False):
     """
     Split text by recursively looking at characters. Sourced from Langchain. Included directly to avoid adding extra dependencies. https://api.python.langchain.com/en/latest/_modules/langchain_text_splitters/character.html#RecursiveCharacterTextSplitter
@@ -160,12 +139,12 @@ def split_text_recursively(text, chunk_size=1000, chunk_overlap=20, separators=N
         final_chunks.append(chunks[i][start:end])
     return final_chunks
 
-def embed_documents(openai_client, input_path, study):
+def embed_documents(ai_model : AIModel, input_path, study):
     """
     Embed the documents for a given study.
 
     Args:
-        openai_client (object): The OpenAI client.
+        ai_model (object): The AI Model.
         input_path (str): The input path for the study.
         study (str): The study name.
 
@@ -178,15 +157,15 @@ def embed_documents(openai_client, input_path, study):
     text_chunks = [chunk for chunk in text_chunks if chunk.strip()]  # Drop empty chunks
     embeddings = []
     for chunk in text_chunks:
-        embeddings.append(get_embedding(openai_client, chunk))
+        embeddings.append(ai_model.get_embedding(chunk))
     return text_chunks, embeddings
 
-def get_relevent_context(openai_client, varname, text_chunks, embeddings, relevance_dist='min'):
+def get_relevent_context(ai_model : AIModel, varname, text_chunks, embeddings, relevance_dist='min'):
     """
     Get the relevant context for a variable name based on embeddings.
 
     Args:
-        openai_client (object): The OpenAI client.
+        ai_model (object): The AI Model.
         varname (str): The variable name.
         text_chunks (list): The list of text chunks.
         embeddings (list): The list of embeddings.
@@ -195,18 +174,18 @@ def get_relevent_context(openai_client, varname, text_chunks, embeddings, releva
     Returns:
         str: The relevant context for the variable.
     """
-    embedded_query = get_embedding(openai_client, f"variable name:  {varname}, label or description: ")
+    embedded_query = ai_model.get_embedding(f"variable name:  {varname}, label or description: ")
     dists = [spatial.distance.cosine(embedded_query, x) for x in embeddings]
     idx = get_index(dists, 3, by = relevance_dist)
     example_context = [text_chunks[i] for i in idx] # type: ignore
     return '\n'.join([x for x in example_context])
 
-def get_example_dict(openai_client, described, variables_df, text_chunks=None, embeddings=None):
+def get_example_dict(ai_model : AIModel, described, variables_df, text_chunks=None, embeddings=None):
     """
     Create a dictionary of example contexts and descriptions.
 
     Args:
-        openai_client (object): The OpenAI client.
+        ai_model (object): The AI Model.
         described (list): List of described variables.
         variables_df (DataFrame): DataFrame containing variable information.
         text_chunks (list, optional): List of text chunks. Defaults to None.
@@ -224,62 +203,19 @@ def get_example_dict(openai_client, described, variables_df, text_chunks=None, e
         example = described[num]
         example_description = variables_df.loc[variables_df['variable_name'] == example]['description'].values[0]
         if embeddings is not None and text_chunks is not None:
-            example_context = get_relevent_context(openai_client, example, text_chunks, embeddings)
+            example_context = get_relevent_context(ai_model, example, text_chunks, embeddings)
         else:
             example_context = 'Not available'
         example_dict[example] = [example_description, example_context]
     return example_dict
 
-def get_openai_llm_response(openai_client, prompt):
-    """
-    Get the response from OpenAI's LLM for a given prompt.
-
-    Args:
-        openai_client (object): The OpenAI client.
-        prompt (list): The prompt messages.
-
-    Returns:
-        str: The response from the LLM.
-    """
-    llm_response = None
-    try:
-        llm_response = openai_client.chat.completions.create(model="gpt-4o-mini", messages=prompt)
-    except:
-        time.sleep(1)
-        print('retry')
-        try:
-            llm_response = openai_client.chat.completions.create(model="gpt-4o-mini", messages=prompt)
-        except:
-            llm_response = None
-            print('openai fail') # if all fail good chance the context length is too long
-    if llm_response:
-        label = llm_response.choices[0].message.content # type: ignore
-        return ''.join(['*',label]) # add a * to indicate this description is AI generated
-    else: 
-        return None
-    
-def get_llm_response(openai_client, prompt):
-    """
-    Get the response from the LLM for a given prompt.
-
-    Args:
-        openai_client (object): The OpenAI client.
-        prompt (list): The prompt messages.
-
-    Returns:
-        str: The response from the LLM.
-    """
-    if openai_client:
-        return get_openai_llm_response(openai_client, prompt)
-    else:
-        raise ValueError("No OpenAI API client found. Please provide an API key to proceed.")
 
 def generate_descriptions():
     """
     Generate descriptions for variables in datasets.
     """
     config = dotenv_values(".env")
-    openai_client = init_llm_models(config)
+    ai_model = get_ai_model(config)
     init_prompt = config['init_prompt']
     avail_studies = [x for x in fs.ls(f'{input_path}/') if fs.isdir(x)] # get directories
     avail_studies = [f.split('/')[-1] for f in avail_studies if f.split('/')[-1][0] != '.'] # strip path and remove hidden folders
@@ -305,13 +241,13 @@ def generate_descriptions():
             context_available = False
             text_chunks, embeddings = None, None
             if fs.exists(f"{input_path}/{study}/context.txt"):
-                text_chunks, embeddings = embed_documents(openai_client, input_path, study) 
+                text_chunks, embeddings = embed_documents(ai_model, input_path, study)
                 context_available = True
 
             # check if examples are available
             example_dict = None
             if not len(described) == 0:
-                example_dict = get_example_dict(openai_client, described, variables_df, text_chunks,embeddings)
+                example_dict = get_example_dict(ai_model, described, variables_df, text_chunks,embeddings)
             
             # create descriptions
             codebook = {}
@@ -319,13 +255,13 @@ def generate_descriptions():
                 # get context for variable if available
                 context = 'Not available'
                 if context_available:
-                    context = get_relevent_context(openai_client, var, text_chunks, embeddings)
+                    context = get_relevent_context(ai_model, var, text_chunks, embeddings)
 
                 # create prompt
                 prompt = return_prompt(init_prompt, var, context, example_dict)
 
                 # get LLM response
-                llm_response = get_llm_response(openai_client, prompt)
+                llm_response = ai_model.get_llm_response(prompt)
                 if llm_response:
                     codebook[var] = llm_response
             

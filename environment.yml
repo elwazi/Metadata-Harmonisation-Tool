@@ -6,6 +6,7 @@ dependencies:
 - jupyterlab
 - numpy
 - openai
+- google-genai
 - openpyxl
 - pandas
 - pdfminer.six

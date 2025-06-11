@@ -17,15 +17,17 @@ def initialise_mapping_recommendations():
     """
     config = dotenv_values(".env")
 
-    if 'OpenAI_api_key' not in config:
+    if 'OpenAI_api_key' in config:
+        st.write(f":green[OpenAI_api_key detected :white_check_mark:]")
+    if 'gemini_api_key' in config:
+        st.write(f":green[gemini_api_key detected :white_check_mark:]")
+    else:
         st.write(":red[No OpenAI key detected, please insert a key below]")
         OpenAI_api_key = st.text_input("OpenAI_api_key", value="", type="password")
         if st.button("Add Key", key='submit'):
             modify_env('OpenAI_api_key', OpenAI_api_key)
             del st.session_state['submit']
             st.rerun()
-    else:
-        st.write(f":green[OpenAI_api_key detected :white_check_mark:]")
 
     reset = st.button(":red[Reset LLM Configuration]", key='reset')
     if reset:
