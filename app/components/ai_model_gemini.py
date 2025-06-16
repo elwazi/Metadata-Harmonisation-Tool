@@ -12,7 +12,6 @@ class GeminiAIModel(AIModel):
     def __init__(self, config):
         super().__init__(config)
         self.ai_client = None
-        # self.embedding_model = "gemini-embedding-exp-03-07"
         self.embedding_model = "text-embedding-004"
         self.chat_model = "gemini-2.0-flash"
 
@@ -31,10 +30,15 @@ class GeminiAIModel(AIModel):
         return embedding.values
 
     def get_embeddings(self, text_series : Series):
-        text_list = text_series.tolist()
-        print("Requesting embeddings for multiple elements, size: {}".format(len(text_list)))
-        result = self.ai_client.models.embed_content(model=self.embedding_model, contents=text_list)
-        return pd.Series(e.values for e in result.embeddings)
+        batch_size = 100
+        batches = []
+        for i in range(0, len(text_series), batch_size):
+            batch = text_series[i : i + batch_size].tolist()
+            print("Requesting embeddings for multiple elements, size: {}".format(len(batch)))
+            result = self.ai_client.models.embed_content(model=self.embedding_model, contents=batch)
+            batches.extend(result.embeddings)
+
+        return pd.Series(e.values for e in batches)
 
     def get_llm_response(self, prompt):
         print("Requesting content for prompt: {}".format(prompt))
