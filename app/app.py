@@ -49,7 +49,7 @@ with st.sidebar:
         with col4:
             enable_transformations = st.checkbox('Transform Mode', value = True, help = 'This adds functionality to create and test transformations instructions for each variable. These instructions can then be used to transform data to a common format. Example transformation instructions available [here](https://github.com/csag-uct/Metadata-Harmonisation-Tool/pull/19#issuecomment-2356409576). Only available if example data is provided.')
     st.divider()
-    st.write('Please report any issues to the [GitHub repository](https://github.com/csag-uct/Metadata-Harmonisation-Tool) or contact peter.marsh@uct.ac.za for more information.')
+    st.write('Please report any issues to the [GitHub repository](https://github.com/csag-uct/Metadata-Harmonisation-Tool) for more information.')
 
 if page == 'About':
     about_page()
