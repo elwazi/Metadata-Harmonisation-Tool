@@ -23,11 +23,24 @@ def initialise_mapping_recommendations():
         st.write(f":green[gemini_api_key detected :white_check_mark:]")
     else:
         st.write(":red[No OpenAI key detected, please insert a key below]")
-        OpenAI_api_key = st.text_input("OpenAI_api_key", value="", type="password")
+        option = st.selectbox(
+            "AI Model",
+            ["OpenAI", "Gemini"],
+            index=None,
+            placeholder="Select an AI Model",
+            accept_new_options=False,
+        )
+
+        api_key = st.text_input("api_key", value="", type="password")
         if st.button("Add Key", key='submit'):
-            modify_env('OpenAI_api_key', OpenAI_api_key)
+            if option == "Gemini":
+                modify_env('gemini_api_key', api_key)
+            else:
+                modify_env('OpenAI_api_key', api_key)
+
             del st.session_state['submit']
             st.rerun()
+
 
     reset = st.button(":red[Reset LLM Configuration]", key='reset')
     if reset:

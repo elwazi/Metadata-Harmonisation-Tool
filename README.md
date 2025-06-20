@@ -26,6 +26,11 @@ docker pull peterm790/metadata_harmonisation_tool
 docker run -p 8501:8501 peterm790/metadata_harmonisation_tool
 ```
 
+Latest image with Gemini model integration 
+```shell
+docker pull quay.io/ebi-ait/metadata_harmonisation_tool:latest
+```
+
 The app will then be accessible from your browser at [localhost:8501/](localhost:8501/)
 
 ### Configure python environment

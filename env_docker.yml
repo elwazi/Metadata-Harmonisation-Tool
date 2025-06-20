@@ -6,6 +6,7 @@ dependencies:
 - jupyterlab
 - numpy
 - openai
+- google-genai
 - openpyxl
 - pandas
 - pdfminer.six
@@ -13,6 +14,7 @@ dependencies:
 - python-duckdb
 - scipy
 - streamlit>=1.20.0
+- tiktoken
 - pip
 - pip:
     - clevercsv
